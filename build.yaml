@@ -1,0 +1,7 @@
+builders:
+  form:
+    import: "package:crud_flutter_form_generator/builder.dart"
+    builder_factories: ["formBuilder"]
+    build_extensions: {".dart": [".bloc.dart"]}
+    auto_apply: dependents
+    build_to: source
