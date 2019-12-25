@@ -1,7 +1,14 @@
 builders:
-  form:
+  formStateful:
     import: "package:crud_flutter_form_generator/builder.dart"
-    builder_factories: ["formBuilder"]
-    build_extensions: {".dart": [".bloc.dart"]}
+    builder_factories: ["formStateFulFlutterBuilder"]
+    build_extensions: {".dart": [".form.stateful.dart"]}
+    auto_apply: dependents
+    build_to: source
+  
+  formState:
+    import: "package:crud_flutter_form_generator/builder.dart"
+    builder_factories: ["formStateFlutterBuilder"]
+    build_extensions: {".dart": [".form.state.dart"]}
     auto_apply: dependents
     build_to: source
