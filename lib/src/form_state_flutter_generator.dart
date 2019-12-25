@@ -6,20 +6,21 @@ import 'package:source_gen/source_gen.dart';
 
 import 'annotations.dart';
 
-class FormStatelessFlutterGenerator
+class FormStateFlutterGenerator
     extends GenerateFlutterWidgetForAnnotation<FormEntity> {
   @override
   generateForAnnotatedElement(
       Element element, ConstantReader annotation, BuildStep buildStep) {
-    name = '${element.name}FormPage';
+    name = '${element.name}FormPageState';
     this.element = element;
     this.annotation = annotation;
-    extend = refer('StatelessWidget');
+    extend = refer('State<${element.name}FormPage>');
     _declareField();
     _methodBuild();
     _methodSave();
     return "import 'package:rxdart/subjects.dart';"
             "import '${element.name.toLowerCase()}.bloc.dart';"
+            "import '${element.name.toLowerCase()}.form.stateful.dart';"
             "import 'package:flutter/services.dart';"
             "import 'package:intl/intl.dart';" +
         build();
