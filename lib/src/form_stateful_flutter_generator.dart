@@ -14,14 +14,33 @@ class FormStatefulFlutterGenerator
     this.element = element;
     this.annotation = annotation;
     extend = refer('StatefulWidget');
+    _declareField();
+    _declareConstructor();
     _methodCreateState();
-    return "import '${element.name.toLowerCase()}.form.state.dart';"+build();
+    return "import '${element.name.toLowerCase()}.form.state.dart';"
+            "import '${element.name.toLowerCase()}.entity.dart';" +
+        build();
+  }
+
+  _declareField() {
+    declareField(
+        refer('${element.name}Entity'), '${element.name.toLowerCase()}Entity',
+        modifier: FieldModifier.final$);
+  }
+
+  _declareConstructor() {
+    declareConstructor(optionalParameters: [
+      Parameter((b) => b
+        ..name = 'this.${element.name.toLowerCase()}Entity'
+        ..named = true)
+    ]);
   }
 
   void _methodCreateState() {
     declareMethod('createState',
         returns: refer('${element.name}FormPageState'),
         lambda: true,
-        body: Code('${element.name}FormPageState()'));
+        body: Code(
+            '${element.name}FormPageState(${element.name.toLowerCase()}Entity: ${element.name.toLowerCase()}Entity)'));
   }
 }
