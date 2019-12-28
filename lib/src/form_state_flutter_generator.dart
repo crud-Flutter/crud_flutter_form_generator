@@ -90,7 +90,6 @@ class FormStateFlutterGenerator
       if (field.type.name == 'String') {
         initStateCode.add(_variableTextField(field.name));
       } else if (field.type.name == 'DateTime') {
-        print('DateTime');
         initStateCode.add(_variableDateTimeField(field.name));
       } else {
         initStateCode
@@ -141,17 +140,17 @@ class FormStateFlutterGenerator
           "decoration: InputDecoration(hintText: '${name[0].toUpperCase()}${name.substring(1)}'),"),
       Code('controller: ${name}Controller,'),
     ];
-    var onChanged = Code('onChanged: _bloc.set${name},');
+    var onSaved = Code('onSaved: _bloc.set${name},');
     if (type == 'int' || type == 'num' || type == 'number') {
       textFieldCode.add(Code('keyboardType: TextInputType.number,'));
       if (type == 'int') {
         textFieldCode.add(Code(
             'inputFormatters: [WhitelistingTextInputFormatter.digitsOnly],'));
       }
-      onChanged =
-          Code('onChanged: (text) {_bloc.set${name}($type.parse(text));},');
+      onSaved =
+          Code('onSaved: (text) {_bloc.set${name}($type.parse(text));},');
     }
-    textFieldCode.add(onChanged);
+    textFieldCode.add(onSaved);
     textFieldCode.add(Code(');'));
     var blockBuilder = BlockBuilder()..statements.addAll(textFieldCode);
     return blockBuilder.build();
@@ -160,6 +159,7 @@ class FormStateFlutterGenerator
   _methodSave() {
     var saveCode = [
       Code('if (_formKey.currentState.validate()) {'),
+      Code('_formKey.currentState.save();'),
       Code('_bloc.insertOrUpdate().then((dynamic){'),
       Code('Navigator.pop(context);'),
       Code('});'),
