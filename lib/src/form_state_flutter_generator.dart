@@ -26,6 +26,7 @@ class FormStateFlutterGenerator
             "import '${element.name.toLowerCase()}.form.stateful.dart';"
             "import 'package:flutter/services.dart';"
             "import '${element.name.toLowerCase()}.entity.dart';"
+            "import 'package:flutter_datetime_formfield/flutter_datetime_formfield.dart';"
             "import 'package:intl/intl.dart';" +
         build();
   }
@@ -60,7 +61,11 @@ class FormStateFlutterGenerator
     elementAsClass.fields.forEach((field) {
       declareField(refer('final'), '${field.name}Controller',
           assignment: Code('TextEditingController()'));
-      declareField(refer('TextFormField'), field.name);
+      if (field.type.name == 'DateTime') {
+        declareField(refer('DateTimeFormField'), field.name);
+      } else {
+        declareField(refer('TextFormField'), field.name);
+      }
     });
     declareField(refer('${element.name}Bloc'), '_bloc',
         assignment: Code('${element.name}Bloc()'));
@@ -69,11 +74,14 @@ class FormStateFlutterGenerator
   }
 
   _declareConstructor() {
-    declareConstructor(optionalParameters: [
-      Parameter((b) => b
-        ..name = 'this.${element.name.toLowerCase()}Entity'
-        ..named = true)
-    ]);
+    declareConstructor(
+        optionalParameters: [
+          Parameter((b) => b
+            ..name = 'this.${element.name.toLowerCase()}Entity'
+            ..named = true)
+        ],
+        body: Code(
+            'if (this.${element.name.toLowerCase()}Entity !=null) {_bloc.set${element.name}Entity(this.${element.name.toLowerCase()}Entity);}'));
   }
 
   _methodInitState() {
@@ -81,6 +89,9 @@ class FormStateFlutterGenerator
     elementAsClass.fields.forEach((field) {
       if (field.type.name == 'String') {
         initStateCode.add(_variableTextField(field.name));
+      } else if (field.type.name == 'DateTime') {
+        print('DateTime');
+        initStateCode.add(_variableDateTimeField(field.name));
       } else {
         initStateCode
             .add(_variableTextField(field.name, type: field.type.name));
@@ -98,12 +109,29 @@ class FormStateFlutterGenerator
         initStateCode.add(Code(
             '${field.name}Controller.text = $entityInstance.${field.name} as String;'));
       } else if (field.type.name == 'DateTime') {
-        initStateCode.add(Code('${field.name}Controller.text = dateTimeFormat($entityInstance.${field.name});'));
+        initStateCode.add(Code(
+            '${field.name}Controller.text = dateTimeFormat($entityInstance.${field.name});'));
       }
     });
     initStateCode.add(Code('}'));
     var blockBuilder = BlockBuilder()..statements.addAll(initStateCode);
     declareMethod('initState', body: blockBuilder.build());
+  }
+
+  Code _variableDateTimeField(String name) {
+    var blockBuilder = BlockBuilder()
+      ..statements.addAll([
+        Code('$name = DateTimeFormField('),
+        Code(
+            'initialValue: (_bloc.out$name as BehaviorSubject).value ?? DateTime.now(),'),
+        Code('formatter: DateFormat.yMMMMd().add_Hm(),'),
+        Code("label: '$name',"),
+        Code('onSaved: (DateTime dateTime) {'),
+        Code('${name}Controller.text = dateTimeFormat(dateTime);'),
+        Code('_bloc.set${name}(dateTime);'),
+        Code('});')
+      ]);
+    return blockBuilder.build();
   }
 
   Code _variableTextField(String name, {String type = 'String'}) {
@@ -123,51 +151,9 @@ class FormStateFlutterGenerator
       onChanged =
           Code('onChanged: (text) {_bloc.set${name}($type.parse(text));},');
     }
-    if (type == 'DateTime') {
-      onChanged = _onChangedDateTimeField(name);
-      textFieldCode.add(Code('keyboardType: TextInputType.datetime,'));
-    }
     textFieldCode.add(onChanged);
     textFieldCode.add(Code(');'));
     var blockBuilder = BlockBuilder()..statements.addAll(textFieldCode);
-    return blockBuilder.build();
-  }
-
-  _onChangedDateTimeField(String name) {
-    var onChangedCode = List<Code>();
-    onChangedCode.add(Code('onTap: () async {'));
-    onChangedCode
-        .add(Code('FocusScope.of(context).requestFocus(new FocusNode());'));
-    onChangedCode.add(Code('var selectedDate = await showDatePicker('));
-    onChangedCode.add(Code('context: context,'));
-    onChangedCode.add(Code(
-        'initialDate: (_bloc.out$name as BehaviorSubject).value ?? DateTime.now(),'));
-    onChangedCode.add(Code('firstDate: DateTime(2018),'));
-    onChangedCode.add(Code('lastDate: DateTime(2030),'));
-    onChangedCode.add(Code(');'));
-    onChangedCode.add(Code('if(selectedDate != null) {'));
-    onChangedCode.add(
-        Code('var initialTime = (_bloc.out$name as BehaviorSubject).value;'));
-    onChangedCode.add(Code('if (initialTime==null) {'));
-    onChangedCode.add(Code('initialTime = TimeOfDay.now();'));
-    onChangedCode.add(Code('} else {'));
-    onChangedCode
-        .add(Code('initialTime = TimeOfDay.fromDateTime(initialTime);'));
-    onChangedCode.add(Code('}'));
-    onChangedCode.add(Code('var selectedTime = await showTimePicker('));
-    onChangedCode.add(Code('context: context,'));
-    onChangedCode.add(Code('initialTime: initialTime,'));
-    onChangedCode.add(Code(');'));
-    onChangedCode.add(Code('if (selectedTime != null) {'));
-    onChangedCode.add(Code(
-        'var dateTime = DateTime(selectedDate.year, selectedDate.month, selectedDate.day, selectedTime.hour, selectedTime.minute);'));
-    onChangedCode
-        .add(Code('${name}Controller.text = dateTimeFormat(dateTime);'));
-    onChangedCode.add(Code('_bloc.set${name}(dateTime);'));
-    onChangedCode.add(Code('}'));
-    onChangedCode.add(Code('}'));
-    onChangedCode.add(Code('},'));
-    var blockBuilder = BlockBuilder()..statements.addAll(onChangedCode);
     return blockBuilder.build();
   }
 
