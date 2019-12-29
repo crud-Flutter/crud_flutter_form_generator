@@ -12,6 +12,7 @@ class FormStateFlutterGenerator
   @override
   generateForAnnotatedElement(
       Element element, ConstantReader annotation, BuildStep buildStep) {
+    init();
     name = '${element.name}FormPageState';
     this.element = element;
     this.annotation = annotation;
@@ -158,7 +159,8 @@ class FormStateFlutterGenerator
         textFieldCode.add(Code(
             'inputFormatters: [WhitelistingTextInputFormatter.digitsOnly],'));
       }
-      onChanged = Code('onSaved: (text) {_bloc.set${name}($type.parse(text));},');
+      onChanged =
+          Code('onChanged: (text) {_bloc.set${name}($type.parse(text));},');
     }
     textFieldCode.add(onChanged);
     textFieldCode.add(Code(');'));
@@ -185,7 +187,11 @@ class FormStateFlutterGenerator
     try {
       titlePage = getAnnotationValue('titlePage').stringValue;
     } catch (e) {}
-    var buildCode = [Code('body: SingleChildScrollView(child: '), Code('Form('), Code('key: _formKey,')];
+    var buildCode = [
+      Code('body: SingleChildScrollView(child: '),
+      Code('Form('),
+      Code('key: _formKey,')
+    ];
     buildCode.add(Code('child: Column('));
     buildCode.add(Code('children:  <Widget> ['));
     elementAsClass.fields.forEach((field) {
