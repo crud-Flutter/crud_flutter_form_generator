@@ -10,6 +10,7 @@ class FormStatefulFlutterGenerator
   @override
   generateForAnnotatedElement(
       Element element, ConstantReader annotation, BuildStep buildStep) {
+    init();
     name = '${element.name}FormPage';
     this.element = element;
     this.annotation = annotation;
