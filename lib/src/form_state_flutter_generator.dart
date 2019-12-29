@@ -17,20 +17,14 @@ class FormStateFlutterGenerator
     this.element = element;
     this.annotation = annotation;
     extend = refer('State<${element.name}FormPage>');
+    addImportPackage('${element.name.toLowerCase()}.form.stateful.dart');
     _declareField();
     _declareConstructor();
     _methodInitState();
     _methodBuild();
     _methodSave();
     _methodDateTimeFormat();
-    return "import 'package:rxdart/subjects.dart';"
-            "import '${element.name.toLowerCase()}.bloc.dart';"
-            "import '${element.name.toLowerCase()}.form.stateful.dart';"
-            "import 'package:flutter/services.dart';"
-            "import '${element.name.toLowerCase()}.entity.dart';"
-            "import 'package:flutter_datetime_formfield/flutter_datetime_formfield.dart';"
-            "import 'package:intl/intl.dart';" +
-        build();
+    return build();
   }
 
   _methodDateTimeFormat() {
@@ -55,6 +49,7 @@ class FormStateFlutterGenerator
             ..type = refer('DateTime'))
         ],
         body: blockBuilder.build());
+        addImportPackage('package:intl/intl.dart');
   }
 
   _declareField() {
@@ -63,15 +58,21 @@ class FormStateFlutterGenerator
     elementAsClass.fields.forEach((field) {
       declareField(refer('final'), '${field.name}Controller',
           assignment: Code('TextEditingController()'));
-      if (field.type.name == 'DateTime') {
-        declareField(refer('DateTimeFormField'), field.name);
+      if (field.type.name == 'DateTime' ||
+          field.type.name == 'Date' ||
+          field.type.name == 'Time') {
+        addImportPackage(
+            'package:flutter_datetime_formfield/flutter_datetime_formfield.dart');
+        declareField(refer('DateTimeFormField'), '${field.name}Field');
       } else {
-        declareField(refer('TextFormField'), field.name);
+        declareField(refer('TextFormField'), '${field.name}Field');
       }
     });
+    addImportPackage('${element.name.toLowerCase()}.bloc.dart');
     declareField(refer('${element.name}Bloc'), '_bloc',
         assignment: Code('${element.name}Bloc()'));
     declareField(refer('BuildContext'), 'context');
+    addImportPackage('${element.name.toLowerCase()}.entity.dart');
     declareField(refer('$entityClass'), '$entityInstance');
   }
 
@@ -131,7 +132,7 @@ class FormStateFlutterGenerator
   Code _variableDateTimeField(String name, {String onlyDateOrTime}) {
     var blockBuilder = BlockBuilder()
       ..statements.addAll([
-        Code('$name = DateTimeFormField('),
+        Code('${name}Field = DateTimeFormField('),
         Code(
             'initialValue: (_bloc.out$name as BehaviorSubject).value ?? DateTime.now(),'),
         Code(onlyDateOrTime ?? ''),
@@ -142,12 +143,13 @@ class FormStateFlutterGenerator
         Code('_bloc.set${name}(dateTime);'),
         Code('});')
       ]);
+    addImportPackage('package:rxdart/subjects.dart');
     return blockBuilder.build();
   }
 
   Code _variableTextField(String name, {String type = 'String'}) {
     var textFieldCode = [
-      Code('$name = TextFormField('),
+      Code('${name}Field = TextFormField('),
       Code(
           "decoration: InputDecoration(hintText: '${name[0].toUpperCase()}${name.substring(1)}'),"),
       Code('controller: ${name}Controller,'),
@@ -195,7 +197,7 @@ class FormStateFlutterGenerator
     buildCode.add(Code('child: Column('));
     buildCode.add(Code('children:  <Widget> ['));
     elementAsClass.fields.forEach((field) {
-      buildCode.add(Code('${field.name},'));
+      buildCode.add(Code('${field.name}Field,'));
     });
     buildCode.add(Code(']))),'));
     var blockBuilder = BlockBuilder();

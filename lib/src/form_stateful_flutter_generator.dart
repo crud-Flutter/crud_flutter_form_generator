@@ -15,15 +15,15 @@ class FormStatefulFlutterGenerator
     this.element = element;
     this.annotation = annotation;
     extend = refer('StatefulWidget');
+    addImportPackage('package:flutter/material.dart');
     _declareField();
     _declareConstructor();
     _methodCreateState();
-    return "import '${element.name.toLowerCase()}.form.state.dart';"
-            "import '${element.name.toLowerCase()}.entity.dart';" +
-        build();
+    return build();
   }
 
   _declareField() {
+    addImportPackage('${element.name.toLowerCase()}.entity.dart');
     declareField(
         refer('${element.name}Entity'), '${element.name.toLowerCase()}Entity',
         modifier: FieldModifier.final$);
@@ -38,6 +38,7 @@ class FormStatefulFlutterGenerator
   }
 
   void _methodCreateState() {
+    addImportPackage('${element.name.toLowerCase()}.form.state.dart');
     declareMethod('createState',
         returns: refer('${element.name}FormPageState'),
         lambda: true,
