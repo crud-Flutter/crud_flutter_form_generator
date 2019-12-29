@@ -3,7 +3,8 @@ import 'package:build/src/builder/build_step.dart';
 import 'package:code_builder/code_builder.dart';
 import 'package:crud_generator/crud_generator.dart';
 import 'package:source_gen/source_gen.dart';
-
+import 'package:flutter_persistence_api/flutter_persistence_api.dart'
+    as annotation;
 import 'annotations.dart';
 
 class FormStateFlutterGenerator
@@ -90,7 +91,16 @@ class FormStateFlutterGenerator
       if (field.type.name == 'String') {
         initStateCode.add(_variableTextField(field.name));
       } else if (field.type.name == 'DateTime') {
-        initStateCode.add(_variableDateTimeField(field.name));
+        var dateOnlyField = TypeChecker.fromRuntime(annotation.Date);
+        var timeOnlyField = TypeChecker.fromRuntime(annotation.Time);
+        var only = null;
+        if (dateOnlyField.hasAnnotationOfExact(field)) {
+          only = 'onlyDate: true,';
+        } else if (timeOnlyField.hasAnnotationOfExact(field)) {
+          only = 'onlyTime: true,';
+        }
+        initStateCode
+            .add(_variableDateTimeField(field.name, onlyDateOrTime: only));
       } else {
         initStateCode
             .add(_variableTextField(field.name, type: field.type.name));
@@ -117,13 +127,14 @@ class FormStateFlutterGenerator
     declareMethod('initState', body: blockBuilder.build());
   }
 
-  Code _variableDateTimeField(String name) {
+  Code _variableDateTimeField(String name, {String onlyDateOrTime}) {
     var blockBuilder = BlockBuilder()
       ..statements.addAll([
         Code('$name = DateTimeFormField('),
         Code(
             'initialValue: (_bloc.out$name as BehaviorSubject).value ?? DateTime.now(),'),
-        Code('formatter: DateFormat.yMMMMd().add_Hm(),'),
+        Code(onlyDateOrTime ?? ''),
+        // Code('formatter: DateFormat.yMMMMd().add_Hm(),'),
         Code("label: '$name',"),
         Code('onSaved: (DateTime dateTime) {'),
         Code('${name}Controller.text = dateTimeFormat(dateTime);'),
@@ -140,17 +151,16 @@ class FormStateFlutterGenerator
           "decoration: InputDecoration(hintText: '${name[0].toUpperCase()}${name.substring(1)}'),"),
       Code('controller: ${name}Controller,'),
     ];
-    var onSaved = Code('onSaved: _bloc.set${name},');
+    var onChanged = Code('onChanged: _bloc.set${name},');
     if (type == 'int' || type == 'num' || type == 'number') {
       textFieldCode.add(Code('keyboardType: TextInputType.number,'));
       if (type == 'int') {
         textFieldCode.add(Code(
             'inputFormatters: [WhitelistingTextInputFormatter.digitsOnly],'));
       }
-      onSaved =
-          Code('onSaved: (text) {_bloc.set${name}($type.parse(text));},');
+      onChanged = Code('onSaved: (text) {_bloc.set${name}($type.parse(text));},');
     }
-    textFieldCode.add(onSaved);
+    textFieldCode.add(onChanged);
     textFieldCode.add(Code(');'));
     var blockBuilder = BlockBuilder()..statements.addAll(textFieldCode);
     return blockBuilder.build();
@@ -175,13 +185,13 @@ class FormStateFlutterGenerator
     try {
       titlePage = getAnnotationValue('titlePage').stringValue;
     } catch (e) {}
-    var buildCode = [Code('body: Form('), Code('key: _formKey,')];
+    var buildCode = [Code('body: SingleChildScrollView(child: '), Code('Form('), Code('key: _formKey,')];
     buildCode.add(Code('child: Column('));
     buildCode.add(Code('children:  <Widget> ['));
     elementAsClass.fields.forEach((field) {
       buildCode.add(Code('${field.name},'));
     });
-    buildCode.add(Code('])),'));
+    buildCode.add(Code(']))),'));
     var blockBuilder = BlockBuilder();
     blockBuilder.statements.addAll(buildCode);
     var actionBarCode = [
