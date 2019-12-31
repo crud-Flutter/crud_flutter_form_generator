@@ -49,22 +49,27 @@ class FormStateFlutterGenerator
             ..type = refer('DateTime'))
         ],
         body: blockBuilder.build());
-        addImportPackage('package:intl/intl.dart');
+    addImportPackage('package:intl/intl.dart');
   }
 
   _declareField() {
     declareField(refer('final'), '_formKey',
         assignment: Code('GlobalKey<FormState>()'));
     elementAsClass.fields.forEach((field) {
-      declareField(refer('final'), '${field.name}Controller',
-          assignment: Code('TextEditingController()'));
       if (field.type.name == 'DateTime' ||
           field.type.name == 'Date' ||
           field.type.name == 'Time') {
         addImportPackage(
             'package:flutter_datetime_formfield/flutter_datetime_formfield.dart');
         declareField(refer('DateTimeFormField'), '${field.name}Field');
+      } else if (isManyToOneField(field)) {
+        addImportPackage(
+            '../${field.type.name.toLowerCase()}/${field.type.name.toLowerCase()}.entity.dart');
+        declareField(refer('List<DropdownMenuItem<${field.type.name}Entity>>'),
+            '${field.name}Items');
       } else {
+        declareField(refer('final'), '${field.name}Controller',
+            assignment: Code('TextEditingController()'));
         declareField(refer('TextFormField'), '${field.name}Field');
       }
     });
@@ -78,13 +83,12 @@ class FormStateFlutterGenerator
 
   _declareConstructor() {
     declareConstructor(
-        optionalParameters: [
-          Parameter((b) => b
-            ..name = 'this.${element.name.toLowerCase()}Entity'
-            ..named = true)
-        ],
-        body: Code(
-            'if (this.${element.name.toLowerCase()}Entity !=null) {_bloc.set${element.name}Entity(this.${element.name.toLowerCase()}Entity);}'));
+      optionalParameters: [
+        Parameter((b) => b
+          ..name = 'this.${element.name.toLowerCase()}Entity'
+          ..named = true)
+      ],
+    );
   }
 
   _methodInitState() {
@@ -103,7 +107,7 @@ class FormStateFlutterGenerator
         }
         initStateCode
             .add(_variableDateTimeField(field.name, onlyDateOrTime: only));
-      } else {
+      } else if (!isManyToOneField(field)) {
         initStateCode
             .add(_variableTextField(field.name, type: field.type.name));
       }
@@ -119,14 +123,47 @@ class FormStateFlutterGenerator
           field.type.name == 'num') {
         initStateCode.add(Code(
             '${field.name}Controller.text = $entityInstance.${field.name} as String;'));
-      } else if (field.type.name == 'DateTime') {
-        initStateCode.add(Code(
-            '${field.name}Controller.text = dateTimeFormat($entityInstance.${field.name});'));
+      } else if (isManyToOneField(field)) {
+        // initStateCode.add(Code('${field.name}Entity = $entityInstance.${field.name}Entity;'));
       }
     });
     initStateCode.add(Code('}'));
     var blockBuilder = BlockBuilder()..statements.addAll(initStateCode);
     declareMethod('initState', body: blockBuilder.build());
+  }
+
+  Code _variableManyToOne(String field, String type, String displayField) {
+    var blockBuilder = BlockBuilder()
+      ..statements.addAll([
+        Code('StreamBuilder<List<${type}Entity>>('),
+        Code('stream: _bloc.list${type}(),'),
+        Code('builder: (context, snapshot) {'),
+        Code('if (!snapshot.hasData)'),
+        Code('return Center(child: CircularProgressIndicator());'),
+        Code('if (${field}Items == null) {'),
+        Code('${field}Items = snapshot.data'),
+        Code('.map<DropdownMenuItem<${type}Entity>>('),
+        Code('(${type}Entity ${field}Entity) { '),
+        Code('_bloc.update${type}by${displayField}(${field}Entity);'),
+        Code('return DropdownMenuItem('),
+        Code('child: Text(${field}Entity.${displayField}),'),
+        Code('value: ${field}Entity,'),
+        Code(');}'),
+        Code(').toList();'),
+        Code('}'),
+        Code('return DropdownButtonFormField<${type}Entity>('),
+        Code('value: (_bloc.out${field}Entity as BehaviorSubject).value,'),
+        Code('isExpanded: true,'),
+        Code("hint: Text('${type}'),"),
+        Code('items: ${field}Items,'),
+        Code('onChanged: (${type}Entity ${field}Entity) {'),
+        Code('setState((){'),
+        Code('_bloc.set${field}Entity(${field}Entity);'),
+        Code('});},'),
+        Code(');'),
+        Code('})')
+      ]);
+    return blockBuilder.build();
   }
 
   Code _variableDateTimeField(String name, {String onlyDateOrTime}) {
@@ -139,7 +176,6 @@ class FormStateFlutterGenerator
         // Code('formatter: DateFormat.yMMMMd().add_Hm(),'),
         Code("label: '$name',"),
         Code('onSaved: (DateTime dateTime) {'),
-        Code('${name}Controller.text = dateTimeFormat(dateTime);'),
         Code('_bloc.set${name}(dateTime);'),
         Code('});')
       ]);
@@ -197,7 +233,16 @@ class FormStateFlutterGenerator
     buildCode.add(Code('child: Column('));
     buildCode.add(Code('children:  <Widget> ['));
     elementAsClass.fields.forEach((field) {
-      buildCode.add(Code('${field.name}Field,'));
+      if (isManyToOneField(field)) {
+        buildCode.add(Code('${field.name}Builder(),'));
+        declareMethod('${field.name}Builder',
+            lambda: true,
+            returns: refer('StreamBuilder<List<${field.type.name}Entity>>'),
+            body: _variableManyToOne(field.name, field.type.name,
+                getDisplayField(annotation.ManyToOne, field)));
+      } else {
+        buildCode.add(Code('${field.name}Field,'));
+      }
     });
     buildCode.add(Code(']))),'));
     var blockBuilder = BlockBuilder();
