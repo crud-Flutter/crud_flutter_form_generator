@@ -93,6 +93,22 @@ class FormStateFlutterGenerator
 
   _methodInitState() {
     var initStateCode = [Code('super.initState();')];
+    initStateCode.add(Code('if ($entityInstance != null) {'));
+    initStateCode.add(Code('_bloc.set$entityClass($entityInstance);'));
+    elementAsClass.fields.forEach((field) {
+      if (field.type.name == 'String') {
+        initStateCode.add(Code(
+            '${field.name}Controller.text = $entityInstance.${field.name};'));
+      } else if (field.type.name == 'int' ||
+          field.type.name == 'double' ||
+          field.type.name == 'num') {
+        initStateCode.add(Code(
+            '${field.name}Controller.text = $entityInstance.${field.name} as String;'));
+      } else if (isManyToOneField(field)) {
+        // initStateCode.add(Code('${field.name}Entity = $entityInstance.${field.name}Entity;'));
+      }
+    });
+    initStateCode.add(Code('}'));
     elementAsClass.fields.forEach((field) {
       if (field.type.name == 'String') {
         initStateCode.add(_variableTextField(field.name));
@@ -112,22 +128,6 @@ class FormStateFlutterGenerator
             .add(_variableTextField(field.name, type: field.type.name));
       }
     });
-    initStateCode.add(Code('if ($entityInstance != null) {'));
-    initStateCode.add(Code('_bloc.set$entityClass($entityInstance);'));
-    elementAsClass.fields.forEach((field) {
-      if (field.type.name == 'String') {
-        initStateCode.add(Code(
-            '${field.name}Controller.text = $entityInstance.${field.name};'));
-      } else if (field.type.name == 'int' ||
-          field.type.name == 'double' ||
-          field.type.name == 'num') {
-        initStateCode.add(Code(
-            '${field.name}Controller.text = $entityInstance.${field.name} as String;'));
-      } else if (isManyToOneField(field)) {
-        // initStateCode.add(Code('${field.name}Entity = $entityInstance.${field.name}Entity;'));
-      }
-    });
-    initStateCode.add(Code('}'));
     var blockBuilder = BlockBuilder()..statements.addAll(initStateCode);
     declareMethod('initState', body: blockBuilder.build());
   }
@@ -152,13 +152,13 @@ class FormStateFlutterGenerator
         Code(').toList();'),
         Code('}'),
         Code('return DropdownButtonFormField<${type}Entity>('),
-        Code('value: (_bloc.out${field}Entity as BehaviorSubject).value,'),
+        Code('value: (_bloc.out${field} as BehaviorSubject).value,'),
         Code('isExpanded: true,'),
         Code("hint: Text('${type}'),"),
         Code('items: ${field}Items,'),
         Code('onChanged: (${type}Entity ${field}Entity) {'),
         Code('setState((){'),
-        Code('_bloc.set${field}Entity(${field}Entity);'),
+        Code('_bloc.set${field}(${field}Entity);'),
         Code('});},'),
         Code(');'),
         Code('})')
