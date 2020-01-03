@@ -24,6 +24,8 @@ class FormStateFlutterGenerator
     _methodBuild();
     _methodSave();
     _methodDateTimeFormat();
+    _methodManyToOneBuilder();
+    _methodOneToManyBuilder();
     return build();
   }
 
@@ -67,6 +69,12 @@ class FormStateFlutterGenerator
             '../${field.type.name.toLowerCase()}/${field.type.name.toLowerCase()}.entity.dart');
         declareField(refer('List<DropdownMenuItem<${field.type.name}Entity>>'),
             '${field.name}Items');
+      } else if (isOneToManyField(field)) {
+        var type = (getGenericTypes(field.type).first.element as ClassElement)
+            .getField(getDisplayField(annotation.OneToMany, field))
+            .type
+            .name;
+        declareField(refer('Map<$type, bool>'), '${field.name}Items');
       } else {
         declareField(refer('final'), '${field.name}Controller',
             assignment: Code('TextEditingController()'));
@@ -123,7 +131,7 @@ class FormStateFlutterGenerator
         }
         initStateCode
             .add(_variableDateTimeField(field.name, onlyDateOrTime: only));
-      } else if (!isManyToOneField(field)) {
+      } else if (!isManyToOneField(field) && !isOneToManyField(field)) {
         initStateCode
             .add(_variableTextField(field.name, type: field.type.name));
       }
@@ -132,38 +140,103 @@ class FormStateFlutterGenerator
     declareMethod('initState', body: blockBuilder.build());
   }
 
-  Code _variableManyToOne(String field, String type, String displayField) {
-    var blockBuilder = BlockBuilder()
-      ..statements.addAll([
-        Code('StreamBuilder<List<${type}Entity>>('),
-        Code('stream: _bloc.list${type}(),'),
-        Code('builder: (context, snapshot) {'),
-        Code('if (!snapshot.hasData)'),
-        Code('return Center(child: CircularProgressIndicator());'),
-        Code('if (${field}Items == null) {'),
-        Code('${field}Items = snapshot.data'),
-        Code('.map<DropdownMenuItem<${type}Entity>>('),
-        Code('(${type}Entity ${field}Entity) { '),
-        Code('_bloc.update${type}by${displayField}(${field}Entity);'),
-        Code('return DropdownMenuItem('),
-        Code('child: Text(${field}Entity.${displayField}),'),
-        Code('value: ${field}Entity,'),
-        Code(');}'),
-        Code(').toList();'),
-        Code('}'),
-        Code('return DropdownButtonFormField<${type}Entity>('),
-        Code('value: (_bloc.out${field} as BehaviorSubject).value,'),
-        Code('isExpanded: true,'),
-        Code("hint: Text('${type}'),"),
-        Code('items: ${field}Items,'),
-        Code('onChanged: (${type}Entity ${field}Entity) {'),
-        Code('setState((){'),
-        Code('_bloc.set${field}(${field}Entity);'),
-        Code('});},'),
-        Code(');'),
-        Code('})')
-      ]);
-    return blockBuilder.build();
+  void _methodManyToOneBuilder() {
+    elementAsClass.fields.forEach((field) {
+      if (isManyToOneField(field)) {
+        var displayField = getDisplayField(annotation.ManyToOne, field);
+        declareMethod('${field.name}Builder',
+            lambda: true,
+            returns: refer('StreamBuilder<List<${field.type.name}Entity>>'),
+            body: Code('StreamBuilder<List<${field.type.name}Entity>>('
+                'stream: _bloc.list${field.type.name}(),'
+                'builder: (context, snapshot) {'
+                'if (!snapshot.hasData)'
+                'return Center(child: CircularProgressIndicator());'
+                'if (${field.name}Items == null) {'
+                '${field.name}Items = snapshot.data'
+                '.map<DropdownMenuItem<${field.type.name}Entity>>('
+                '(${field.type.name}Entity ${field.name}Entity) { '
+                '_bloc.update${field.type.name}by$displayField(${field.name}Entity);'
+                'return DropdownMenuItem('
+                'child: Text(${field.name}Entity.$displayField),'
+                'value: ${field.name}Entity,'
+                ');}'
+                ').toList();'
+                '}'
+                'return DropdownButtonFormField<${field.type.name}Entity>('
+                'value: (_bloc.out${field.name} as BehaviorSubject).value,'
+                'isExpanded: true,'
+                "hint: Text('${field.type.name}'),"
+                'items: ${field.name}Items,'
+                'onChanged: (${field.type.name}Entity ${field.name}Entity) {'
+                'setState((){'
+                '_bloc.set${field.name}(${field.name}Entity);'
+                '});},'
+                ');'
+                '}'
+                ')'));
+      }
+    });
+  }
+
+  void _methodOneToManyBuilder() {
+    elementAsClass.fields.forEach((field) {
+      if (isOneToManyField(field)) {
+        var type = getGenericTypes(field.type).first.name;
+        var displayField = getDisplayField(annotation.OneToMany, field);
+        addImportPackage(
+            '../${type.toLowerCase()}/${type.toLowerCase()}.entity.dart');
+        addImportPackage('../${type.toLowerCase()}/${type.toLowerCase()}.dart');
+        Code code = Code('StreamBuilder<List<${type}Entity>>('
+            'stream: _bloc.list$type(),'
+            'builder: (build, snapshot) {'
+            'if (!snapshot.hasData)'
+            'return Center(child: CircularProgressIndicator());'
+            'if (${field.name}Items == null) {'
+            '${field.name}Items = {};'
+            'snapshot.data.forEach((${field.name}) {'
+            'var value = false;'
+            'if ($entityInstance != null && $entityInstance.${field.name} != null)'
+            'value = $entityInstance.${field.name}'
+            '.where((${field.name}Where) => ${field.name}Where.$displayField == ${field.name}.$displayField)'
+            '.length > 0;'
+            '${field.name}Items[${field.name}.${displayField}] = value;'
+            '});'
+            '}'
+            'var checkBox = List<Widget>();'
+            '${field.name}Items.forEach((index, value){'
+            'checkBox.add(SwitchListTile('
+            'title: Text(index),'
+            'value: value,'
+            'onChanged: (bool value) {'
+            'if (value) {'
+            'if ((_bloc.out${field.name} as BehaviorSubject).value == null) {'
+            '_bloc.set${field.name}([$type()..$displayField = index]);'
+            '} else {'
+            'if ((_bloc.out${field.name} as BehaviorSubject).value'
+            '.where((${field.name}) => ${field.name}.$displayField == index)'
+            '.length <=0) {'
+            '(_bloc.out${field.name} as BehaviorSubject).value.add($type()..$displayField = index);'
+            '}'
+            '}'
+            '} else if ((_bloc.out${field.name} as BehaviorSubject).value!=null){'
+            '(_bloc.out${field.name} as BehaviorSubject).value'
+            '.removeWhere((${field.name}) => ${field.name}.$displayField == index);'
+            '}'
+            'setState(() {'
+            '${field.name}Items[index] = value;'
+            '});'
+            '},'
+            '));'
+            '});'
+            'return Column('
+            'children: checkBox,'
+            ');'
+            '}'
+            ')');
+        declareMethod('${field.name}Builder', lambda: true, body: code);
+      }
+    });
   }
 
   Code _variableDateTimeField(String name, {String onlyDateOrTime}) {
@@ -235,11 +308,8 @@ class FormStateFlutterGenerator
     elementAsClass.fields.forEach((field) {
       if (isManyToOneField(field)) {
         buildCode.add(Code('${field.name}Builder(),'));
-        declareMethod('${field.name}Builder',
-            lambda: true,
-            returns: refer('StreamBuilder<List<${field.type.name}Entity>>'),
-            body: _variableManyToOne(field.name, field.type.name,
-                getDisplayField(annotation.ManyToOne, field)));
+      } else if (isOneToManyField(field)) {
+        buildCode.add(Code('${field.name}Builder(),'));
       } else {
         buildCode.add(Code('${field.name}Field,'));
       }
